@@ -1,0 +1,28 @@
+#!/usr/bin/make -f
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+%:
+	dh $@ --buildsystem=cmake
+
+override_dh_auto_configure:
+	dh_auto_configure -- \
+		-DCMAKE_BUILD_TYPE=None \
+		-DBUILD_IBUS=ON \
+		-DBUILD_FCITX5=ON \
+		-DBUILD_FCITX4=ON \
+		-DBUILD_TESTS=ON
+
+override_dh_install:
+	multiarch=$$(dpkg-architecture -qDEB_HOST_MULTIARCH); \
+	if [ -f debian/tmp/usr/lib/fcitx/fcitx-kesara.so ]; then \
+		mkdir -p debian/tmp/usr/lib/$$multiarch/fcitx; \
+		mv debian/tmp/usr/lib/fcitx/fcitx-kesara.so \
+			debian/tmp/usr/lib/$$multiarch/fcitx/; \
+	fi; \
+	if [ -f debian/tmp/usr/lib/fcitx5/kesara.so ]; then \
+		mkdir -p debian/tmp/usr/lib/$$multiarch/fcitx5; \
+		mv debian/tmp/usr/lib/fcitx5/kesara.so \
+			debian/tmp/usr/lib/$$multiarch/fcitx5/; \
+	fi
+	dh_install

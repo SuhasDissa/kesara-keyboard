@@ -1,0 +1,39 @@
+Source: kesara
+Section: utils
+Priority: optional
+Maintainer: Suhas Dissanayake <suhasdissa@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ cmake,
+ pkg-config,
+ extra-cmake-modules,
+ libfcitx5core-dev,
+ libfcitx5utils-dev,
+ fcitx-libs-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/SuhasDissa/kesara-keyboard
+Vcs-Git: https://github.com/SuhasDissa/kesara-keyboard.git
+Vcs-Browser: https://github.com/SuhasDissa/kesara-keyboard
+Rules-Requires-Root: no
+
+Package: ibus-kesara
+Architecture: all
+Depends: ibus-m17n, m17n-db, ${misc:Depends}
+Description: Kesara Sinhala phonetic input method for IBus
+ Kesara converts Singlish-style Latin typing into Sinhala Unicode.
+ This package installs the m17n table used by ibus-m17n
+ (m17n:si:kesara).
+
+Package: fcitx5-kesara
+Architecture: any
+Depends: fcitx5, ${shlibs:Depends}, ${misc:Depends}
+Description: Kesara Sinhala phonetic input method for Fcitx 5
+ Native Fcitx 5 engine for the Kesara Sinhala phonetic keyboard,
+ matching the original m17n conversion rules.
+
+Package: fcitx-kesara
+Architecture: any
+Depends: fcitx, ${shlibs:Depends}, ${misc:Depends}
+Description: Kesara Sinhala phonetic input method for Fcitx 4
+ Native Fcitx 4 engine for the Kesara Sinhala phonetic keyboard,
+ matching the original m17n conversion rules.

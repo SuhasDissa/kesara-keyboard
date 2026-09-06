@@ -1,0 +1,156 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake gcc
+      - name: Configure, build, test
+        run: |
+          cmake -B build -DBUILD_TESTS=ON -DBUILD_FCITX4=OFF -DBUILD_FCITX5=OFF
+          cmake --build build
+          ctest --test-dir build --output-on-failure
+
+  arch:
+    needs: test
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install packaging tools
+        run: pacman -Syu --noconfirm --needed git base-devel cmake extra-cmake-modules fcitx5 sudo
+      - uses: actions/checkout@v4
+      - name: Build Arch packages
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          tar --exclude-vcs --exclude='.github' -czf "/tmp/kesara-${VERSION}.tar.gz" \
+            --transform "s,^,kesara-keyboard-${VERSION}/," .
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+          install -d /work
+          cp PKGBUILD /work/
+          cp "/tmp/kesara-${VERSION}.tar.gz" "/work/kesara-${VERSION}.tar.gz"
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" /work/PKGBUILD
+          sed -i "s|^source=.*|source=(\"kesara-${VERSION}.tar.gz\")|" /work/PKGBUILD
+          chown -R builder:builder /work
+          su builder -c 'cd /work && makepkg -f --noconfirm'
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp /work/*.pkg.tar.* "$GITHUB_WORKSPACE/out/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch-packages
+          path: out/*
+
+  debian:
+    needs: test
+    runs-on: ubuntu-latest
+    container: debian:bookworm
+    steps:
+      - name: Install packaging tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git cmake debhelper extra-cmake-modules \
+            libfcitx5core-dev libfcitx5utils-dev fcitx-libs-dev \
+            pkg-config build-essential dpkg-dev fakeroot ninja-build
+      - uses: actions/checkout@v4
+      - name: Build Debian packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/^kesara (.*/kesara (${VERSION}) unstable; urgency=medium/" debian/changelog
+          chmod +x debian/rules
+          mkdir -p /src
+          cp -a . /src/kesara
+          cd /src/kesara
+          dpkg-buildpackage -us -uc -b
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp /src/*.deb "$GITHUB_WORKSPACE/out/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debian-packages
+          path: out/*
+
+  fedora:
+    needs: test
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Install packaging tools
+        run: |
+          dnf install -y git rpm-build cmake gcc-c++ extra-cmake-modules \
+            pkgconf fcitx5-devel cmake-rpm-macros ninja-build
+      - uses: actions/checkout@v4
+      - name: Build RPM packages
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/^Version:.*/Version:        ${VERSION}/" kesara.spec
+          mkdir -p "${HOME}/rpmbuild/SOURCES" "${HOME}/rpmbuild/SPECS"
+          tar --exclude-vcs -czf \
+            "${HOME}/rpmbuild/SOURCES/kesara-keyboard-${VERSION}.tar.gz" \
+            --transform "s,^,kesara-keyboard-${VERSION}/," .
+          cp kesara.spec "${HOME}/rpmbuild/SPECS/"
+          rpmbuild -bb "${HOME}/rpmbuild/SPECS/kesara.spec" \
+            --define "_topdir ${HOME}/rpmbuild"
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          find "${HOME}/rpmbuild/RPMS" -name '*.rpm' -exec cp {} "$GITHUB_WORKSPACE/out/" \;
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fedora-packages
+          path: out/*
+
+  source:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create source tarball
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p out
+          tar --exclude-vcs -czf "out/kesara-${VERSION}-src.tar.gz" \
+            --transform "s,^,kesara-${VERSION}/," .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-tarball
+          path: out/*
+
+  release:
+    needs: [arch, debian, fedora, source]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Checksums
+        run: |
+          cd artifacts
+          sha256sum * > SHA256SUMS
+          ls -l
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+          body: |
+            Kesara Sinhala phonetic keyboard `${{ github.ref_name }}`.
+
+            Install **one** package for your input framework:
+
+            - `ibus-kesara` — IBus (m17n:si:kesara)
+            - `fcitx5-kesara` — Fcitx 5 / KDE
+            - `fcitx-kesara` — Fcitx 4 (Debian packages)

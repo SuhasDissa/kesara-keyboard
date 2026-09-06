@@ -1,0 +1,29 @@
+# CMake
+/build/
+/cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+CTestTestfile.cmake
+Testing/
+
+# Objects / packages
+*.o
+*.so
+*.a
+*.deb
+*.rpm
+*.pkg.tar.*
+*.tar.gz
+*.dsc
+*.buildinfo
+*.changes
+
+# Editors / OS
+*~
+*.swp
+.DS_Store
+.idea/
+.vscode/
